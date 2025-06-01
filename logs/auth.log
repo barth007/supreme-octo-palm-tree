@@ -1,0 +1,13 @@
+2025-06-01 03:31:18,080 | INFO | app.api.v1.endpoints.auth | Redirecting to Google for authentication
+2025-06-01 03:32:23,450 | INFO | app.api.v1.endpoints.auth | Redirecting to Google for authentication
+2025-06-01 03:32:24,383 | ERROR | app.api.v1.endpoints.auth | Authentication failed: mismatching_state: CSRF Warning! State not equal in request and response.
+2025-06-01 03:33:25,353 | INFO | app.api.v1.endpoints.auth | Redirecting to Google for authentication
+2025-06-01 03:33:26,916 | ERROR | app.api.v1.endpoints.auth | Authentication failed: mismatching_state: CSRF Warning! State not equal in request and response.
+2025-06-01 03:35:53,545 | INFO | app.api.v1.endpoints.auth | Redirecting to Google for authentication
+2025-06-01 03:35:55,971 | ERROR | app.api.v1.endpoints.auth | Authentication failed: mismatching_state: CSRF Warning! State not equal in request and response.
+2025-06-01 03:36:09,203 | INFO | app.api.v1.endpoints.auth | Redirecting to Google for authentication
+2025-06-01 03:36:09,716 | ERROR | app.api.v1.endpoints.auth | Authentication failed: mismatching_state: CSRF Warning! State not equal in request and response.
+2025-06-01 03:36:59,264 | INFO | app.api.v1.endpoints.auth | Redirecting to Google for authentication
+2025-06-01 03:37:11,739 | ERROR | app.api.v1.endpoints.auth | Authentication failed: mismatching_state: CSRF Warning! State not equal in request and response.
+2025-06-01 03:42:56,815 | INFO | app.api.v1.endpoints.auth | Redirecting to Google for authentication
+2025-06-01 03:43:13,165 | INFO | app.api.v1.endpoints.auth | Successfully retrieved token from Google

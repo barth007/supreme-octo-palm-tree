@@ -22,5 +22,11 @@ class UserResponse(UserBase):
     created_at: datetime
     updated_at: datetime
 
+class GoogleUserInfo(BaseModel):
+    email: EmailStr
+    name: Optional[str] = None
+    picture: Optional[str] = None
+
+
     class Config:
         orm_mode = True

@@ -1,0 +1,2 @@
+2025-06-01 03:43:13,173 | INFO | app.services.user_service | Querying database for user with email: goyetterosalyn@gmail.com
+2025-06-01 03:43:13,191 | INFO | app.services.user_service | User created with email: goyetterosalyn@gmail.com

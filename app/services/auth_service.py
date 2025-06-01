@@ -10,18 +10,31 @@ from app.core.security import create_access_token
 from app.schemas.user import UserCreate, UserUpdate
 from app.schemas.token import TokenResponse, TokenData
 from app.services.user_service import UserService
-from app.schemas.user import UserResponse
+from app.schemas.user import UserResponse, GoogleUserInfo
+from pydantic import ValidationError
+
+
+from app.core.logger import get_module_logger
+
+
+logger = get_module_logger(__name__, "logs/auth_service.log")
 
 class AuthService:
+    """Service for handling authentication logic"""
+
     @staticmethod
     async def process_google_user(db: Session, user_info: Dict[str, Any]) -> TokenResponse:
         """Process Google user info and return token"""
+
+        try:
+            user_info_data = GoogleUserInfo(**user_info)
+        except ValidationError as e:
+            logger.error(f"Invalid Google user data: {e}")
+            raise ValueError("Invalid user data from Google")
+
         email = user_info.get('email')
         name = user_info.get('name')
         picture = user_info.get('picture')
-        
-        if not email:
-            raise ValueError("Email not provided by Google")
         
         # Get or create user
         user = UserService.get_user_by_email(db, email)

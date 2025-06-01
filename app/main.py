@@ -18,7 +18,11 @@ def create_application() -> FastAPI:
     application.debug = settings.DEBUG
     application.add_middleware(
         SessionMiddleware,
-        secret_key=settings.SECRET_KEY
+        secret_key=settings.SECRET_KEY,
+         session_cookie="session_cookie",  # Optional: custom name
+        max_age=86400,  # Optional: session lifetime in seconds
+        same_site="lax",  # Optional: CSRF protection
+        https_only=False  
     )
 
     # CORS
