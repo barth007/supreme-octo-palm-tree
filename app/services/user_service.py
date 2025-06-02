@@ -2,7 +2,7 @@
 # app/services/user_service.py
 # =============================================================================
 from typing import Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.logger import get_module_logger
@@ -14,6 +14,13 @@ class UserService:
         """Get user by email"""
         logger.info(f"Querying database for user with email: {email}")
         return db.query(User).filter(User.email == email).first()
+    
+
+    @staticmethod
+    def get_user_by_id(db: Session, user_id: str) -> Optional[User]:
+        """Get user by ID with Slack connection"""
+        logger.info(f"Querying database for user with ID: {user_id}")
+        return db.query(User).options(joinedload(User.slack_connection)).filter(User.id == user_id).first()
     
     @staticmethod
     def create_user(db: Session, user_data: UserCreate) -> User:

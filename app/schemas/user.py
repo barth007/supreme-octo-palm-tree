@@ -4,6 +4,7 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr
+from app.schemas.slack import SlackConnectionResponse
 
 class UserBase(BaseModel):
     name: str
@@ -19,6 +20,7 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: str
     profile_image: Optional[str]
+    slack_connection: Optional[SlackConnectionResponse] = None
     created_at: datetime
     updated_at: datetime
 
