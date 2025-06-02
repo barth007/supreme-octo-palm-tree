@@ -1,5 +1,5 @@
-/.venv
+.venv
 .env
 users.db
-/__pycache__/
-/logs/*
+__pycache__
+logs
