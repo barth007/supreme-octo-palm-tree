@@ -21,13 +21,15 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    # Google OAuth2
-    print(f'GOOGLE_CLIENT_ID: {os.getenv("GOOGLE_CLIENT_ID")}')
-    print(f'GOOGLE_CLIENT_SECRET: {os.getenv("GOOGLE_CLIENT_SECRET")}')
-    print(f'GOOGLE_REDIRECT_URI: {os.getenv("GOOGLE_REDIRECT_URI")}')  
+    # Google OAuth2 
     GOOGLE_CLIENT_ID: Optional[str] = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET: Optional[str] = os.getenv("GOOGLE_CLIENT_SECRET")
     GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/v1/auth/google/callback")
+
+    # Slack OAuth2
+    SLACK_CLIENT_ID: Optional[str] = os.getenv("SLACK_CLIENT_ID")
+    SLACK_CLIENT_SECRET: Optional[str] = os.getenv("SLACK_CLIENT_SECRET")
+    SLACK_REDIRECT_URI: str = os.getenv("SLACK_REDIRECT_URI", "http://localhost:8000/api/v1/auth/slack/callback")
     
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./app.db")
@@ -51,6 +53,19 @@ class Settings(BaseSettings):
     def validate_google_client_secret(cls, v):
         if not v:
             raise ValueError("GOOGLE_CLIENT_SECRET is required")
+        return v
+    
+    @field_validator("SLACK_CLIENT_ID")
+    @classmethod
+    def validate_slack_client_id(cls, v):
+        if not v:
+            raise ValueError("SLACK_CLIENT_ID is required")
+        return v
+    @field_validator("SLACK_CLIENT_SECRET")
+    @classmethod
+    def validate_slack_client_secret(cls, v):
+        if not v:
+            raise ValueError("SLACK_CLIENT_SECRET is required")
         return v
 
     class Config:

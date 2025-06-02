@@ -2,3 +2,4 @@
 .env
 users.db
 /__pycache__/
+/logs/*
