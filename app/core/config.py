@@ -30,7 +30,11 @@ class Settings(BaseSettings):
     SLACK_CLIENT_ID: Optional[str] = os.getenv("SLACK_CLIENT_ID")
     SLACK_CLIENT_SECRET: Optional[str] = os.getenv("SLACK_CLIENT_SECRET")
     SLACK_REDIRECT_URI: str = os.getenv("SLACK_REDIRECT_URI", "http://localhost:8000/api/v1/auth/slack/callback")
-    
+
+    #postmark webhooks Authentication (HTTP Basic Auth)
+    WEBHOOK_USERNAME: str = os.getenv("WEBHOOK_USERNAME")
+    WEBHOOK_PASSWORD: str = os.getenv("WEBHOOK_PASSWORD")
+
     # Database
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./app.db")
     
@@ -66,6 +70,19 @@ class Settings(BaseSettings):
     def validate_slack_client_secret(cls, v):
         if not v:
             raise ValueError("SLACK_CLIENT_SECRET is required")
+        return v
+    
+    @field_validator("WEBHOOK_USERNAME")
+    @classmethod
+    def validate_webhook_username(cls, v):
+        if not v:
+            raise ValueError("WEBHOOK_USERNAME is required")
+        return v
+    @field_validator("WEBHOOK_PASSWORD")
+    @classmethod
+    def validate_webhook_password(cls, v):
+        if not v:
+            raise ValueError("WEBHOOK_PASSWORD is required")
         return v
 
     class Config:
