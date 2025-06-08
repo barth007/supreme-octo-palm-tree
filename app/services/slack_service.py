@@ -18,12 +18,30 @@ class SlackService:
     @staticmethod
     def get_slack_connection_by_user_id(db: Session, user_id: str) -> Optional[SlackConnection]:
         """Get Slack connection by user ID"""
-       
-        return db.query(SlackConnection).filter(SlackConnection.user_id == user_id).first()
-    
+        try:
+            if isinstance(user_id, str):
+                user_uuid = uuid.UUID(user_id)
+            else:
+                user_uuid = user_id
+        except ValueError:
+            logger.error(f"Invalid user_id format: {user_id}")
+            return None
+            
+        return db.query(SlackConnection).filter(SlackConnection.user_id == user_uuid).first()
+
     @staticmethod
     def create_slack_connection(db: Session, user_id: str, slack_data: SlackConnectionCreate) -> SlackConnection:
         """Create or update Slack connection"""
+        
+        
+        try:
+            if isinstance(user_id, str):
+                user_uuid = uuid.UUID(user_id)
+            else:
+                user_uuid = user_id
+        except ValueError:
+            logger.error(f"Invalid user_id format: {user_id}")
+            raise ValueError(f"Invalid user_id format: {user_id}")
         
         existing_connection = SlackService.get_slack_connection_by_user_id(db, user_id)
         
@@ -38,9 +56,9 @@ class SlackService:
             logger.info(f"Updated Slack connection for user: {user_id}")
             return existing_connection
         else:
-            # Create new connection
+            # Create new connection - use UUID object
             slack_connection = SlackConnection(
-                user_id=user_id,
+                user_id=user_uuid, 
                 **slack_data.model_dump()
             )
             db.add(slack_connection)
@@ -48,11 +66,10 @@ class SlackService:
             db.refresh(slack_connection)
             logger.info(f"Created Slack connection for user: {user_id}")
             return slack_connection
-    
+
     @staticmethod
     def delete_slack_connection(db: Session, user_id: str) -> bool:
         """Delete Slack connection"""
-       
         connection = SlackService.get_slack_connection_by_user_id(db, user_id)
         if connection:
             db.delete(connection)

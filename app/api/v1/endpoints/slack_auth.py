@@ -7,6 +7,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from urllib.parse import urlencode
 from datetime import datetime
+import uuid
 from app.db.session import get_db
 from app.core.dependencies import get_current_user
 from app.models.user import User
@@ -85,6 +86,89 @@ async def get_slack_auth_url(
 
 @router.get("/slack/callback", status_code=status.HTTP_302_FOUND)
 async def slack_callback(request: Request, db: Session = Depends(get_db)):
+    """
+    Handle Slack OAuth2 callback and redirect to frontend
+    """
+    try:
+        logger.info("Processing Slack OAuth callback")
+        
+        # Check for error parameters from Slack
+        error = request.query_params.get("error")
+        if error:
+            error_description = request.query_params.get("error_description", "Unknown error")
+            logger.error(f"Slack OAuth error: {error} - {error_description}")
+            return _redirect_to_frontend_with_error(f"Slack authorization failed: {error_description}")
+        
+        # Get authorization code from Slack
+        code = request.query_params.get("code")
+        if not code:
+            logger.error("No authorization code received from Slack")
+            return _redirect_to_frontend_with_error("No authorization code received from Slack")
+        
+        # Validate state parameter
+        state = request.query_params.get("state")
+        if not state or not state.startswith("user_"):
+            logger.error(f"Invalid or missing state parameter: {state}")
+            return _redirect_to_frontend_with_error("Invalid state parameter")
+        
+        user_id_str = state.replace("user_", "")
+        try:
+            user_id = uuid.UUID(user_id_str)  # Convert string to UUID object
+            logger.info(f"Processing OAuth callback for user UUID: {user_id}")
+        except ValueError as e:
+            logger.error(f"Invalid user ID format: {user_id_str} - {e}")
+            return _redirect_to_frontend_with_error("Invalid user ID format")
+        
+        # Verify user exists
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            logger.error(f"User not found: {user_id}")
+            return _redirect_to_frontend_with_error("User not found")
+        
+        # Exchange authorization code for access token
+        token_data = await _exchange_code_for_token(code)
+        
+        if not token_data.get("ok"):
+            error_msg = token_data.get("error", "Token exchange failed")
+            logger.error(f"Token exchange failed: {error_msg}")
+            return _redirect_to_frontend_with_error(f"Token exchange failed: {error_msg}")
+        
+        # Extract token and user information
+        access_token = token_data.get("access_token")
+        authed_user = token_data.get("authed_user", {})
+        team = token_data.get("team", {})
+        
+        slack_user_id = authed_user.get("id")
+        slack_team_id = team.get("id")
+        team_name = team.get("name")
+        
+        if not access_token or not slack_user_id or not slack_team_id:
+            logger.error("Missing required Slack information in token response")
+            logger.error(f"access_token: {'Present' if access_token else 'Missing'}")
+            logger.error(f"slack_user_id: {slack_user_id}")
+            logger.error(f"slack_team_id: {slack_team_id}")
+            return _redirect_to_frontend_with_error("Missing required Slack information")
+        
+        # Create Slack connection in database
+        slack_data = SlackConnectionCreate(
+            slack_user_id=slack_user_id,
+            slack_team_id=slack_team_id,
+            access_token=access_token,
+            team_name=team_name
+        )
+        
+        slack_connection = SlackService.create_slack_connection(db, str(user_id), slack_data)
+        
+        logger.info(f"✅ Slack connection created successfully for user: {user.email}")
+        logger.info(f"   Team: {team_name}")
+        logger.info(f"   Slack User ID: {slack_user_id}")
+        
+        # Redirect to frontend with success
+        return _redirect_to_frontend_with_slack_success(user, slack_connection)
+        
+    except Exception as e:
+        logger.error(f"❌ Slack OAuth callback failed: {str(e)}", exc_info=True)
+        return _redirect_to_frontend_with_error(f"Slack authentication failed: {str(e)}")
     """
     Handle Slack OAuth2 callback and redirect to frontend
     
