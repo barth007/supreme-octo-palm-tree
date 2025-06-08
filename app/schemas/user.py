@@ -21,6 +21,7 @@ class UserResponse(UserBase):
     id: str
     profile_image: Optional[str]
     slack_connection: Optional[SlackConnectionResponse] = None
+    inbound_email: Optional[str] = None  # For Postmark inbound emails
     created_at: datetime
     updated_at: datetime
 
