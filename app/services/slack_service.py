@@ -4,6 +4,7 @@
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 import requests
+import uuid
 from app.models.slack_connection import SlackConnection
 from app.models.user import User
 from app.schemas.slack import SlackConnectionCreate
@@ -17,12 +18,13 @@ class SlackService:
     @staticmethod
     def get_slack_connection_by_user_id(db: Session, user_id: str) -> Optional[SlackConnection]:
         """Get Slack connection by user ID"""
+       
         return db.query(SlackConnection).filter(SlackConnection.user_id == user_id).first()
     
     @staticmethod
     def create_slack_connection(db: Session, user_id: str, slack_data: SlackConnectionCreate) -> SlackConnection:
         """Create or update Slack connection"""
-        # Check if connection already exists
+        
         existing_connection = SlackService.get_slack_connection_by_user_id(db, user_id)
         
         if existing_connection:
@@ -50,6 +52,7 @@ class SlackService:
     @staticmethod
     def delete_slack_connection(db: Session, user_id: str) -> bool:
         """Delete Slack connection"""
+       
         connection = SlackService.get_slack_connection_by_user_id(db, user_id)
         if connection:
             db.delete(connection)
@@ -89,6 +92,7 @@ class SlackService:
     @staticmethod
     def send_pr_notification(db: Session, user_id: str, repo_name: str, pr_title: str, pr_url: str) -> Dict[str, Any]:
         """Send PR notification to user's Slack"""
+       
         slack_connection = SlackService.get_slack_connection_by_user_id(db, user_id)
         
         if not slack_connection:
@@ -112,6 +116,7 @@ Click the link above to review the pull request."""
     @staticmethod
     def send_test_notification(db: Session, user_id: str, message: str = None) -> Dict[str, Any]:
         """Send test notification to user's Slack"""
+       
         slack_connection = SlackService.get_slack_connection_by_user_id(db, user_id)
         
         if not slack_connection:

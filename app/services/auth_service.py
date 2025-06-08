@@ -35,7 +35,7 @@ class AuthService:
         email = user_info.get('email')
         name = user_info.get('name')
         picture = user_info.get('picture')
-        
+
         # Get or create user
         user = UserService.get_user_by_email(db, email)
         if not user:
