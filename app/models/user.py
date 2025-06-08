@@ -15,7 +15,7 @@ class User(BaseModel):
     
     # Relationships
     slack_connection = relationship("SlackConnection", back_populates="user", uselist=False)
-    pull_requests = relationship("PullRequest", back_populates="user", cascade="all, delete-orphan")
+    # pull_requests = relationship("PullRequest", back_populates="user", cascade="all, delete-orphan")
     pr_notifications = relationship("PullRequestNotification", back_populates="user", cascade="all, delete-orphan")
 
     

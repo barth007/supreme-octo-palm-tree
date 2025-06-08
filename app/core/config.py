@@ -1,8 +1,8 @@
 # =============================================================================
-# app/core/config.py
+# app/core/config.py (Updated with Frontend URL)
 # =============================================================================
 from typing import List, Optional
-from pydantic import  field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 import os
 from dotenv import load_dotenv
@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
+    # Frontend Configuration
+    FRONTEND_BASE_URL: str = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
+    
     # Google OAuth2 
     GOOGLE_CLIENT_ID: Optional[str] = os.getenv("GOOGLE_CLIENT_ID")
     GOOGLE_CLIENT_SECRET: Optional[str] = os.getenv("GOOGLE_CLIENT_SECRET")
@@ -31,7 +34,7 @@ class Settings(BaseSettings):
     SLACK_CLIENT_SECRET: Optional[str] = os.getenv("SLACK_CLIENT_SECRET")
     SLACK_REDIRECT_URI: str = os.getenv("SLACK_REDIRECT_URI", "http://localhost:8000/api/v1/auth/slack/callback")
 
-    #postmark webhooks Authentication (HTTP Basic Auth)
+    # Postmark webhooks Authentication (HTTP Basic Auth)
     WEBHOOK_USERNAME: str = os.getenv("WEBHOOK_USERNAME")
     WEBHOOK_PASSWORD: str = os.getenv("WEBHOOK_PASSWORD")
 
@@ -65,6 +68,7 @@ class Settings(BaseSettings):
         if not v:
             raise ValueError("SLACK_CLIENT_ID is required")
         return v
+        
     @field_validator("SLACK_CLIENT_SECRET")
     @classmethod
     def validate_slack_client_secret(cls, v):
@@ -78,6 +82,7 @@ class Settings(BaseSettings):
         if not v:
             raise ValueError("WEBHOOK_USERNAME is required")
         return v
+        
     @field_validator("WEBHOOK_PASSWORD")
     @classmethod
     def validate_webhook_password(cls, v):
