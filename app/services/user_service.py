@@ -1,6 +1,7 @@
 # =============================================================================
 # app/services/user_service.py
 # =============================================================================
+import uuid
 from typing import Optional
 from sqlalchemy.orm import Session, joinedload
 from app.models.user import User
@@ -20,6 +21,9 @@ class UserService:
     def get_user_by_id(db: Session, user_id: str) -> Optional[User]:
         """Get user by ID with Slack connection"""
         logger.info(f"Querying database for user with ID: {user_id}")
+        # Convert string to UUID if needed
+        if isinstance(user_id, str):
+            user_id = uuid.UUID(user_id)
         return db.query(User).options(joinedload(User.slack_connection)).filter(User.id == user_id).first()
     
     @staticmethod
