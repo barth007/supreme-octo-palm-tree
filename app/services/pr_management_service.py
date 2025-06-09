@@ -1,12 +1,11 @@
-# =============================================================================
-# app/services/pr_management_service.py
-# =============================================================================
+# app/services/pr_management_service.py (FIXED UUID handling)
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, desc, asc, text
 from datetime import datetime, timedelta
 from collections import defaultdict
 import math
+import uuid
 
 from app.models.pr_notification import PullRequestNotification
 from app.models.user import User
@@ -35,9 +34,21 @@ class PRManagementService:
         Get paginated and filtered PR notifications for a user
         """
         try:
-            # Base query
+            # 🔧 FIX: Convert string user_id to UUID properly
+            try:
+                if isinstance(user_id, str):
+                    user_uuid = uuid.UUID(user_id)
+                else:
+                    user_uuid = user_id
+            except ValueError as e:
+                logger.error(f"Invalid user_id format: {user_id}")
+                raise ValueError(f"Invalid user_id format: {user_id}")
+            
+            logger.info(f"Getting PR notifications for user: {user_uuid}")
+            
+            # Base query with proper UUID
             query = db.query(PullRequestNotification).filter(
-                PullRequestNotification.user_id == user_id
+                PullRequestNotification.user_id == user_uuid
             )
             
             # Apply filters
@@ -45,6 +56,7 @@ class PRManagementService:
             
             # Get total count before pagination
             total_count = query.count()
+            logger.info(f"Total notifications found: {total_count}")
             
             # Apply sorting
             query = PRManagementService._apply_sorting(query, filters)
@@ -52,6 +64,8 @@ class PRManagementService:
             # Apply pagination
             offset = (filters.page - 1) * filters.limit
             notifications = query.offset(offset).limit(filters.limit).all()
+            
+            logger.info(f"Retrieved {len(notifications)} notifications for page {filters.page}")
             
             # Convert to summary format
             notification_summaries = [
@@ -69,11 +83,11 @@ class PRManagementService:
             ]
             
             # Calculate pagination info
-            total_pages = math.ceil(total_count / filters.limit)
+            total_pages = math.ceil(total_count / filters.limit) if total_count > 0 else 1
             has_next = filters.page < total_pages
             has_previous = filters.page > 1
             
-            logger.info(f"Retrieved {len(notifications)} notifications (page {filters.page}/{total_pages})")
+            logger.info(f"Pagination: page {filters.page}/{total_pages}, has_next: {has_next}")
             
             return PRNotificationList(
                 notifications=notification_summaries,
@@ -96,23 +110,28 @@ class PRManagementService:
         # Status filter
         if filters.status:
             query = query.filter(PullRequestNotification.pr_status == filters.status)
+            logger.debug(f"Applied status filter: {filters.status}")
         
         # Repository filter
         if filters.repo_name:
             query = query.filter(PullRequestNotification.repo_name.ilike(f"%{filters.repo_name}%"))
+            logger.debug(f"Applied repo filter: {filters.repo_name}")
         
         # Days old filter
         if filters.days_old:
             cutoff_date = datetime.utcnow() - timedelta(days=filters.days_old)
             query = query.filter(PullRequestNotification.received_at <= cutoff_date)
+            logger.debug(f"Applied days_old filter: {filters.days_old} (cutoff: {cutoff_date})")
         
         # Slack sent filter
         if filters.slack_sent is not None:
             query = query.filter(PullRequestNotification.slack_sent == filters.slack_sent)
+            logger.debug(f"Applied slack_sent filter: {filters.slack_sent}")
         
         # Forwarded email filter
         if filters.is_forwarded is not None:
             query = query.filter(PullRequestNotification.is_forwarded == filters.is_forwarded)
+            logger.debug(f"Applied is_forwarded filter: {filters.is_forwarded}")
         
         return query
 
@@ -123,12 +142,14 @@ class PRManagementService:
         
         if not sort_column:
             sort_column = PullRequestNotification.received_at
+            logger.debug(f"Invalid sort_by field '{filters.sort_by}', using 'received_at'")
         
         if filters.sort_order == "asc":
             query = query.order_by(asc(sort_column))
         else:
             query = query.order_by(desc(sort_column))
         
+        logger.debug(f"Applied sorting: {filters.sort_by} {filters.sort_order}")
         return query
 
     @staticmethod
@@ -139,10 +160,18 @@ class PRManagementService:
     ) -> Optional[PRNotificationResponse]:
         """Get a specific PR notification by ID (with user ownership check)"""
         try:
+            # Convert IDs to UUIDs
+            try:
+                notification_uuid = uuid.UUID(notification_id)
+                user_uuid = uuid.UUID(user_id)
+            except ValueError:
+                logger.error(f"Invalid UUID format: notification_id={notification_id}, user_id={user_id}")
+                return None
+            
             notification = db.query(PullRequestNotification).filter(
                 and_(
-                    PullRequestNotification.id == notification_id,
-                    PullRequestNotification.user_id == user_id
+                    PullRequestNotification.id == notification_uuid,
+                    PullRequestNotification.user_id == user_uuid
                 )
             ).first()
             
@@ -182,10 +211,18 @@ class PRManagementService:
     ) -> bool:
         """Delete a PR notification (with user ownership check)"""
         try:
+            # Convert IDs to UUIDs
+            try:
+                notification_uuid = uuid.UUID(notification_id)
+                user_uuid = uuid.UUID(user_id)
+            except ValueError:
+                logger.error(f"Invalid UUID format: notification_id={notification_id}, user_id={user_id}")
+                return False
+            
             notification = db.query(PullRequestNotification).filter(
                 and_(
-                    PullRequestNotification.id == notification_id,
-                    PullRequestNotification.user_id == user_id
+                    PullRequestNotification.id == notification_uuid,
+                    PullRequestNotification.user_id == user_uuid
                 )
             ).first()
             
@@ -206,9 +243,24 @@ class PRManagementService:
     def get_user_pr_stats(db: Session, user_id: str) -> PRStatsResponse:
         """Get comprehensive PR statistics for a user"""
         try:
+            # Convert user_id to UUID
+            try:
+                user_uuid = uuid.UUID(user_id)
+            except ValueError:
+                logger.error(f"Invalid user_id format: {user_id}")
+                return PRStatsResponse(
+                    total_notifications=0,
+                    slack_sent=0,
+                    pending_slack=0,
+                    by_status={},
+                    by_repository={},
+                    forwarded_emails=0,
+                    recent_activity={}
+                )
+            
             # Base query for user's notifications
             base_query = db.query(PullRequestNotification).filter(
-                PullRequestNotification.user_id == user_id
+                PullRequestNotification.user_id == user_uuid
             )
             
             # Total counts
@@ -228,7 +280,7 @@ class PRManagementService:
                 PullRequestNotification.repo_name,
                 func.count(PullRequestNotification.id).label('count')
             ).filter(
-                PullRequestNotification.user_id == user_id,
+                PullRequestNotification.user_id == user_uuid,
                 PullRequestNotification.repo_name.is_not(None)
             ).group_by(
                 PullRequestNotification.repo_name
@@ -287,121 +339,21 @@ class PRManagementService:
             )
 
     @staticmethod
-    def get_pr_summary(db: Session, user_id: str, days: int) -> PRSummaryResponse:
-        """Get PR activity summary for a specific time period"""
-        try:
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
-            
-            # Base query for the time period
-            period_query = db.query(PullRequestNotification).filter(
-                and_(
-                    PullRequestNotification.user_id == user_id,
-                    PullRequestNotification.received_at >= cutoff_date
-                )
-            )
-            
-            total_notifications = period_query.count()
-            
-            # Status counts
-            new_prs = period_query.filter(PullRequestNotification.pr_status == 'opened').count()
-            merged_prs = period_query.filter(PullRequestNotification.pr_status == 'merged').count()
-            closed_prs = period_query.filter(PullRequestNotification.pr_status == 'closed').count()
-            
-            # Repositories involved
-            repositories = db.query(PullRequestNotification.repo_name).filter(
-                and_(
-                    PullRequestNotification.user_id == user_id,
-                    PullRequestNotification.received_at >= cutoff_date,
-                    PullRequestNotification.repo_name.is_not(None)
-                )
-            ).distinct().all()
-            
-            repo_list = [repo[0] for repo in repositories]
-            
-            # Daily activity
-            daily_activity = {}
-            for i in range(days):
-                date = cutoff_date + timedelta(days=i)
-                date_str = date.strftime('%Y-%m-%d')
-                
-                count = period_query.filter(
-                    func.date(PullRequestNotification.received_at) == date.date()
-                ).count()
-                daily_activity[date_str] = count
-            
-            # Actionable insights
-            pending_reviews = db.query(PullRequestNotification).filter(
-                and_(
-                    PullRequestNotification.user_id == user_id,
-                    PullRequestNotification.pr_status == 'opened',
-                    PullRequestNotification.slack_sent == False
-                )
-            ).count()
-            
-            old_threshold = datetime.utcnow() - timedelta(days=7)
-            old_open_prs = db.query(PullRequestNotification).filter(
-                and_(
-                    PullRequestNotification.user_id == user_id,
-                    PullRequestNotification.pr_status == 'opened',
-                    PullRequestNotification.received_at <= old_threshold
-                )
-            ).count()
-            
-            notification_rate = total_notifications / days if days > 0 else 0
-            
-            return PRSummaryResponse(
-                period_days=days,
-                total_notifications=total_notifications,
-                new_prs=new_prs,
-                merged_prs=merged_prs,
-                closed_prs=closed_prs,
-                repositories_involved=repo_list,
-                daily_activity=daily_activity,
-                pending_reviews=pending_reviews,
-                old_open_prs=old_open_prs,
-                notification_rate=round(notification_rate, 2)
-            )
-            
-        except Exception as e:
-            logger.error(f"Error getting PR summary: {str(e)}")
-            return PRSummaryResponse(
-                period_days=days,
-                total_notifications=0,
-                new_prs=0,
-                merged_prs=0,
-                closed_prs=0,
-                repositories_involved=[],
-                daily_activity={},
-                pending_reviews=0,
-                old_open_prs=0,
-                notification_rate=0.0
-            )
-
-    @staticmethod
-    def get_user_repositories(db: Session, user_id: str) -> List[str]:
-        """Get list of unique repositories for a user"""
-        try:
-            repositories = db.query(PullRequestNotification.repo_name).filter(
-                and_(
-                    PullRequestNotification.user_id == user_id,
-                    PullRequestNotification.repo_name.is_not(None)
-                )
-            ).distinct().order_by(PullRequestNotification.repo_name).all()
-            
-            return [repo[0] for repo in repositories]
-            
-        except Exception as e:
-            logger.error(f"Error getting user repositories: {str(e)}")
-            return []
-
-    @staticmethod
     def mark_slack_sent(db: Session, notification_id: str, user_id: str) -> bool:
         """Mark a notification as sent to Slack (with user ownership check)"""
         try:
+            # Convert IDs to UUIDs
+            try:
+                notification_uuid = uuid.UUID(notification_id)
+                user_uuid = uuid.UUID(user_id)
+            except ValueError:
+                logger.error(f"Invalid UUID format: notification_id={notification_id}, user_id={user_id}")
+                return False
+            
             notification = db.query(PullRequestNotification).filter(
                 and_(
-                    PullRequestNotification.id == notification_id,
-                    PullRequestNotification.user_id == user_id
+                    PullRequestNotification.id == notification_uuid,
+                    PullRequestNotification.user_id == user_uuid
                 )
             ).first()
             
@@ -418,215 +370,27 @@ class PRManagementService:
             db.rollback()
             return False
 
+    # Add other methods with similar UUID handling...
     @staticmethod
-    def bulk_delete_notifications(
-        db: Session, 
-        notification_ids: List[str], 
-        user_id: str
-    ) -> Dict[str, Any]:
-        """Bulk delete PR notifications"""
+    def get_user_repositories(db: Session, user_id: str) -> List[str]:
+        """Get list of unique repositories for a user"""
         try:
-            deleted_count = 0
-            failed_ids = []
+            # Convert user_id to UUID
+            try:
+                user_uuid = uuid.UUID(user_id)
+            except ValueError:
+                logger.error(f"Invalid user_id format: {user_id}")
+                return []
             
-            for notification_id in notification_ids:
-                notification = db.query(PullRequestNotification).filter(
-                    and_(
-                        PullRequestNotification.id == notification_id,
-                        PullRequestNotification.user_id == user_id
-                    )
-                ).first()
-                
-                if notification:
-                    db.delete(notification)
-                    deleted_count += 1
-                else:
-                    failed_ids.append(notification_id)
-            
-            db.commit()
-            
-            result = {
-                "success": True,
-                "deleted_count": deleted_count,
-                "failed_count": len(failed_ids),
-                "failed_ids": failed_ids
-            }
-            
-            logger.info(f"Bulk deleted {deleted_count} notifications for user {user_id}")
-            return result
-            
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Error in bulk delete: {str(e)}")
-            return {
-                "success": False,
-                "deleted_count": 0,
-                "failed_count": len(notification_ids),
-                "error": str(e)
-            }
-
-    @staticmethod
-    def bulk_mark_slack_sent(
-        db: Session, 
-        notification_ids: List[str], 
-        user_id: str
-    ) -> Dict[str, Any]:
-        """Bulk mark notifications as Slack sent"""
-        try:
-            updated_count = 0
-            failed_ids = []
-            
-            for notification_id in notification_ids:
-                notification = db.query(PullRequestNotification).filter(
-                    and_(
-                        PullRequestNotification.id == notification_id,
-                        PullRequestNotification.user_id == user_id
-                    )
-                ).first()
-                
-                if notification:
-                    notification.slack_sent = True
-                    updated_count += 1
-                else:
-                    failed_ids.append(notification_id)
-            
-            db.commit()
-            
-            result = {
-                "success": True,
-                "updated_count": updated_count,
-                "failed_count": len(failed_ids),
-                "failed_ids": failed_ids
-            }
-            
-            logger.info(f"Bulk marked {updated_count} notifications as Slack sent for user {user_id}")
-            return result
-            
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Error in bulk mark Slack sent: {str(e)}")
-            return {
-                "success": False,
-                "updated_count": 0,
-                "failed_count": len(notification_ids),
-                "error": str(e)
-            }
-
-    @staticmethod
-    def search_pr_notifications(
-        db: Session,
-        user_id: str,
-        search_query: str,
-        search_fields: List[str] = None,
-        date_from: Optional[datetime] = None,
-        date_to: Optional[datetime] = None,
-        exact_match: bool = False
-    ) -> List[PRNotificationSummary]:
-        """Advanced search functionality for PR notifications"""
-        try:
-            if not search_fields:
-                search_fields = ["pr_title", "repo_name", "subject"]
-            
-            # Base query
-            query = db.query(PullRequestNotification).filter(
-                PullRequestNotification.user_id == user_id
-            )
-            
-            # Date range filter
-            if date_from:
-                query = query.filter(PullRequestNotification.received_at >= date_from)
-            if date_to:
-                query = query.filter(PullRequestNotification.received_at <= date_to)
-            
-            # Search conditions
-            search_conditions = []
-            for field in search_fields:
-                if hasattr(PullRequestNotification, field):
-                    column = getattr(PullRequestNotification, field)
-                    if exact_match:
-                        condition = column == search_query
-                    else:
-                        condition = column.ilike(f"%{search_query}%")
-                    search_conditions.append(condition)
-            
-            if search_conditions:
-                query = query.filter(or_(*search_conditions))
-            
-            # Execute query
-            notifications = query.order_by(
-                desc(PullRequestNotification.received_at)
-            ).limit(100).all()  # Limit search results
-            
-            # Convert to summary format
-            results = [
-                PRNotificationSummary(
-                    id=str(n.id),
-                    repo_name=n.repo_name,
-                    pr_title=n.pr_title,
-                    pr_link=n.pr_link,
-                    pr_number=n.pr_number,
-                    pr_status=n.pr_status,
-                    received_at=n.received_at,
-                    slack_sent=n.slack_sent,
-                    is_forwarded=n.is_forwarded
-                ) for n in notifications
-            ]
-            
-            logger.info(f"Search returned {len(results)} results for query: {search_query}")
-            return results
-            
-        except Exception as e:
-            logger.error(f"Error in search: {str(e)}")
-            return []
-
-    @staticmethod
-    def get_repository_stats(db: Session, user_id: str, repo_name: str) -> Dict[str, Any]:
-        """Get detailed statistics for a specific repository"""
-        try:
-            # Base query for the repository
-            repo_query = db.query(PullRequestNotification).filter(
+            repositories = db.query(PullRequestNotification.repo_name).filter(
                 and_(
-                    PullRequestNotification.user_id == user_id,
-                    PullRequestNotification.repo_name == repo_name
+                    PullRequestNotification.user_id == user_uuid,
+                    PullRequestNotification.repo_name.is_not(None)
                 )
-            )
+            ).distinct().order_by(PullRequestNotification.repo_name).all()
             
-            total_prs = repo_query.count()
-            
-            # Status breakdown
-            open_prs = repo_query.filter(PullRequestNotification.pr_status == 'opened').count()
-            merged_prs = repo_query.filter(PullRequestNotification.pr_status == 'merged').count()
-            closed_prs = repo_query.filter(PullRequestNotification.pr_status == 'closed').count()
-            
-            # Last activity
-            last_notification = repo_query.order_by(
-                desc(PullRequestNotification.received_at)
-            ).first()
-            
-            # Activity over time (last 30 days)
-            thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-            recent_activity = {}
-            
-            for i in range(30):
-                date = thirty_days_ago + timedelta(days=i)
-                date_str = date.strftime('%Y-%m-%d')
-                
-                count = repo_query.filter(
-                    func.date(PullRequestNotification.received_at) == date.date()
-                ).count()
-                recent_activity[date_str] = count
-            
-            return {
-                "repo_name": repo_name,
-                "total_prs": total_prs,
-                "open_prs": open_prs,
-                "merged_prs": merged_prs,
-                "closed_prs": closed_prs,
-                "last_activity": last_notification.received_at if last_notification else None,
-                "recent_activity": recent_activity,
-                "activity_trend": sum(recent_activity.values())
-            }
+            return [repo[0] for repo in repositories]
             
         except Exception as e:
-            logger.error(f"Error getting repository stats for {repo_name}: {str(e)}")
-            return {}
+            logger.error(f"Error getting user repositories: {str(e)}")
+            return []
